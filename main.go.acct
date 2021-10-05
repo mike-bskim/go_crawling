@@ -1,0 +1,25 @@
+package main
+
+import (
+	"GO/nomad/accounts"
+	"fmt"
+)
+
+// "GO/nomad/accounts"
+
+func main() {
+	// account1 := accounts.Account{Owner: "kimbs", Balance: 100}
+	account1 := accounts.NewAccount("kimb")
+	fmt.Println("init Balance:", account1.Balance())
+
+	account1.Deposit(1000)
+	fmt.Println("deposit Balance:", account1.Balance())
+
+	err := account1.Withdraw(1500)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Println("withdraw Balance:", account1.Balance(), account1.Owner())
+	fmt.Println(account1)
+}
