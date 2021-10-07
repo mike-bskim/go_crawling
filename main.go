@@ -104,63 +104,122 @@ func hitURL(url string) error {
 // }
 
 // URL checker
+// package main
+
+// import (
+// 	"fmt"
+// 	"net/http"
+// 	"strconv"
+// )
+
+// type requestResult struct {
+// 	url     string
+// 	status  string
+// 	errCode int
+// }
+
+// func main() {
+// 	ch := make(chan requestResult)
+// 	// var results = make(map[string]string) // map으로 처리한경우
+// 	var results = make(map[string][]string)
+
+// 	urls := []string{
+// 		"https://academy.nomadcoders.co/",
+// 		"https://www.airbnb.com/",
+// 		"https://www.google.com/",
+// 		"https://www.amazon.com/",
+// 		"https://www.reddit.com/",
+// 		"https://soundcloud.com/",
+// 		"https://www.facebook.com/",
+// 		"https://www.instagram.com/",
+// 	}
+
+// 	for _, url := range urls {
+// 		go hitURL(url, ch)
+// 	}
+
+// 	for i := 0; i < len(urls); i++ {
+// 		result := <-ch
+// 		// results[result.url] = result.status // map으로 처리한경우
+// 		results[result.url] = append(results[result.url], result.status, strconv.Itoa(result.errCode))
+// 	}
+
+// 	for url, status := range results {
+// 		// fmt.Println(url, status) // map으로 처리한경우
+// 		fmt.Println(url, status[0], status[1])
+// 	}
+// }
+
+// func hitURL(url string, ch chan<- requestResult) {
+// 	resp, err := http.Get(url)
+// 	status := "OK"
+// 	errCode := 0
+
+// 	if err != nil || resp.StatusCode >= 400 {
+// 		status = "FAILED"
+// 		errCode = resp.StatusCode
+// 	} else {
+// 		status = "OK"
+// 		errCode = 0
+// 	}
+// 	ch <- requestResult{url: url, status: status, errCode: errCode}
+// }
+
+// go get github.com/PuerkitoBio/goquery
+// indeed
+
 package main
 
 import (
 	"fmt"
+	"github.com/PuerkitoBio/goquery"
+	"log"
 	"net/http"
 	"strconv"
 )
 
-type requestResult struct {
-	url     string
-	status  string
-	errCode int
-}
+//https://kr.indeed.com/%EC%B7%A8%EC%97%85?q=python&limit=50
+var baseURL string = "https://kr.indeed.com/jobs?q=python&limit=50"
 
 func main() {
-	ch := make(chan requestResult)
-	// var results = make(map[string]string) // map으로 처리한경우
-	var results = make(map[string][]string)
-
-	urls := []string{
-		"https://academy.nomadcoders.co/",
-		"https://www.airbnb.com/",
-		"https://www.google.com/",
-		"https://www.amazon.com/",
-		"https://www.reddit.com/",
-		"https://soundcloud.com/",
-		"https://www.facebook.com/",
-		"https://www.instagram.com/",
-	}
-
-	for _, url := range urls {
-		go hitURL(url, ch)
-	}
-
-	for i := 0; i < len(urls); i++ {
-		result := <-ch
-		// results[result.url] = result.status // map으로 처리한경우
-		results[result.url] = append(results[result.url], result.status, strconv.Itoa(result.errCode))
-	}
-
-	for url, status := range results {
-		// fmt.Println(url, status) // map으로 처리한경우
-		fmt.Println(url, status[0], status[1])
+	totalPages := getPages()
+	fmt.Println(totalPages)
+	for i := 0; i < totalPages; i++ {
+		getPage(i)
 	}
 }
 
-func hitURL(url string, ch chan<- requestResult) {
-	resp, err := http.Get(url)
-	status := "OK"
-	errCode := 0
+func getPage(page int) {
+	pageURL := baseURL + "&start=" + strconv.Itoa(page*50)
+	fmt.Println("requesting:", pageURL)
+}
 
-	if err != nil || resp.StatusCode >= 400 {
-		status = "FAILED"
-		errCode = resp.StatusCode
-	} else {
-		status = "OK"
-		errCode = 0
+func getPages() int {
+	pages := 0
+	res, err := http.Get(baseURL)
+	checkErr(err)
+	checkCode(res)
+
+	defer res.Body.Close()
+	doc, err := goquery.NewDocumentFromReader(res.Body)
+	checkErr(err)
+	// fmt.Println(doc)
+	doc.Find(".pagination").Each(func(i int, s *goquery.Selection) {
+		// fmt.Println(s.Html())
+		pages = s.Find("a").Length()
+	})
+
+	return pages
+}
+
+func checkErr(err error) {
+	if err != nil {
+		log.Fatalln(err)
 	}
-	ch <- requestResult{url: url, status: status, errCode: errCode}
+}
+
+func checkCode(res *http.Response) {
+	if res.StatusCode != 200 {
+		log.Fatalln("Request failed with Status:", res.StatusCode, res.Status)
+	}
 }
