@@ -171,27 +171,115 @@ func hitURL(url string) error {
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 )
+
+type extractedJob struct {
+	id       string
+	title    string
+	location string
+	salary   string
+	summary  string
+}
 
 //https://kr.indeed.com/%EC%B7%A8%EC%97%85?q=python&limit=50
 var baseURL string = "https://kr.indeed.com/jobs?q=python&limit=50"
 
 func main() {
+	var jobs []extractedJob
 	totalPages := getPages()
 	fmt.Println(totalPages)
+
 	for i := 0; i < totalPages; i++ {
-		getPage(i)
+		job := getPage(i)
+		jobs = append(jobs, job...)
 	}
+
+	writeJobs(jobs)
+	fmt.Println("Done, extraced", len(jobs))
 }
 
-func getPage(page int) {
+func writeJobs(jobs []extractedJob) {
+	file, err := os.Create("jobs.csv")
+	checkErr(err)
+	utf8bom := []byte{0xEF, 0xBB, 0xBF}
+	file.Write(utf8bom)
+
+	w := csv.NewWriter(file)
+	defer w.Flush()
+
+	headers := []string{"ID", "Title", "Location", "Salary", "Summary"}
+
+	wErr := w.Write(headers)
+	checkErr(wErr)
+	//https://kr.indeed.com/viewjob?jk=b376351fcbd1750e
+	for _, job := range jobs {
+		jobSlice := []string{
+			"https://kr.indeed.com/viewjob?jk=" + job.id,
+			job.title,
+			job.location,
+			job.salary,
+			job.summary}
+		jwErr := w.Write(jobSlice)
+		checkErr(jwErr)
+
+	}
+
+}
+
+func getPage(page int) []extractedJob {
+
+	var jobs []extractedJob
 	pageURL := baseURL + "&start=" + strconv.Itoa(page*50)
 	fmt.Println("requesting:", pageURL)
+	res, err := http.Get(pageURL)
+	checkErr(err)
+	checkCode(res)
+
+	defer res.Body.Close()
+	doc, err := goquery.NewDocumentFromReader(res.Body)
+	checkErr(err)
+	//slider_item
+	searchCards := doc.Find(".tapItem")
+	searchCards.Each(func(i int, card *goquery.Selection) {
+		job := extractJob(card)
+		jobs = append(jobs, job)
+	})
+
+	return jobs
+
+}
+
+func extractJob(card *goquery.Selection) extractedJob {
+	id, _ := card.Attr("data-jk")
+	title := cleanString(card.Find(".jobTitle>span").Text())
+	location := cleanString(card.Find(".companyLocation").Text())
+	salary := cleanString(card.Find(".salary-snippet").Text())
+	summary := cleanString(card.Find(".job-snippet").Text())
+	// fmt.Println(id, "/", title, "/", location)
+	// fmt.Println(salary)
+	// fmt.Println(summary)
+	// fmt.Println()
+
+	return extractedJob{
+		id:       id,
+		title:    title,
+		location: location,
+		salary:   salary,
+		summary:  summary,
+	}
+
+}
+
+func cleanString(str string) string {
+	return strings.Join(strings.Fields(strings.TrimSpace(str)), " ")
 }
 
 func getPages() int {
